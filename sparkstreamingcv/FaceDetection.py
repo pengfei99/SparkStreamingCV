@@ -3,6 +3,11 @@ import pyspark.sql.functions as sql_fun
 import cv2
 from pyspark.sql.functions import udf
 
+spark = SparkSession.builder \
+    .master("local") \
+    .appName("FaceDetection") \
+    .getOrCreate()
+
 
 def face_extraction(image_name):
     image_input_folder_path = "/tmp/sparkcv/input/"
@@ -37,11 +42,6 @@ def extract_file_name(path):
 
 
 def detect_faces_in_stream(image_input_folder_path):
-    spark = SparkSession.builder \
-        .master("local") \
-        .appName("FaceDetection") \
-        .getOrCreate()
-
     image_schema = spark.read.format("binaryFile").load(image_input_folder_path).schema
     raw_images_stream_df = spark.readStream \
         .format("binaryFile") \
@@ -61,10 +61,6 @@ Face_Extraction_UDF = udf(lambda image_name: face_extraction(image_name))
 
 
 def detect_faces_in_batch(image_input_folder_path):
-    spark = SparkSession.builder \
-        .master("local") \
-        .appName("FaceDetection") \
-        .getOrCreate()
     # read images as df from a folder
     image_schema = spark.read.format("binaryFile").load(image_input_folder_path).schema
     raw_images_df = spark.read \
