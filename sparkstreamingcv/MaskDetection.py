@@ -7,6 +7,7 @@ import numpy as np
 from PIL import Image
 import os
 from pyspark.sql.functions import udf
+from pyspark.sql.types import BooleanType
 
 spark = SparkSession.builder \
     .master("local") \
@@ -34,18 +35,20 @@ def get_face_coordinate_of_origin_image(face_image_name):
 
 # Recuperation_des_visages_UDF(col("path"), col("photo"), col("prediction")
 def integrate_face_mask_prediction(face_image_name, origin_image_name, has_mask):
-    image_input_folder_path = "/tmp/sparkcv/input/"
+    image_input_folder_path = "/tmp/sparkcv/input"
     final_output_path = "/tmp/sparkcv/output/final"
     # check if the image is already treated or not, if yes, it means it has multiple faces. and we just add new mask
     # prediction to untreated faces.
     # If not treated, we load image from
     treated_image_path = "{}/{}".format(final_output_path, origin_image_name)
+    print(treated_image_path)
     # If the image is treated, update the treated image
     if os.path.isfile(treated_image_path):
         image = cv2.imread(final_output_path)
     else:
         # Get the untreated image from input
         image = cv2.imread("{}/{}".format(image_input_folder_path, origin_image_name))
+        print("{}/{}".format(image_input_folder_path, origin_image_name))
 
     # set Label text
     if has_mask:
@@ -63,7 +66,6 @@ def integrate_face_mask_prediction(face_image_name, origin_image_name, has_mask)
                         mask_label_color[mask_label], 2)
     # Insert a rectangle around the face
     image = cv2.rectangle(image, (x, y), (x + w, y + h), mask_label_color[mask_label], 1)
-
     # Save the image
     cv2.imwrite(treated_image_path, image)
 
@@ -72,7 +74,7 @@ def integrate_face_mask_prediction(face_image_name, origin_image_name, has_mask)
 
 # This function use a trained vgg19 model to predict if it has mask or no. It returns true, if it has mask.
 def face_mask_prediction(face_image_name):
-    face_image_path = "/tmp/sparkcv/output/faces/"
+    face_image_path = "/tmp/sparkcv/output/faces"
     vgg19_model_path = "/mnt/hgfs/Centos7_share_folder/trained_models"
     vgg19_model_name = "masknet.h5"
     # read raw face image
@@ -95,6 +97,10 @@ def face_mask_prediction(face_image_name):
 
 Face_Mask_Prediction_UDF = udf(lambda face_image_name: face_mask_prediction(face_image_name))
 
+Integrate_Face_Mask_Prediction_UDF = udf(
+    lambda face_image_name, origin_image_name, has_mask: integrate_face_mask_prediction(face_image_name,
+                                                                                        origin_image_name, has_mask))
+
 
 def detect_mask_in_batch(image_input_folder_path):
     schema = spark.read.format("binaryFile").load(image_input_folder_path).schema
@@ -111,15 +117,23 @@ def detect_mask_in_batch(image_input_folder_path):
     df.show()
 
     # generate a column by using vgg19 prediction
-    predict_df = df.withColumn("has_mask", Face_Mask_Prediction_UDF("extracted_face_image_name"))
+    predict_df = df.withColumn("has_mask", Face_Mask_Prediction_UDF("extracted_face_image_name").cast(BooleanType()))
     predict_df.show()
+
+    # integrate the face mask prediction to origin image
+    complete_df = predict_df.withColumn("integration",
+                                        Integrate_Face_Mask_Prediction_UDF("extracted_face_image_name",
+                                                                           "origin_image_name",
+                                                                           "has_mask"))
+    complete_df.show()
 
 
 def main():
-    image_input_folder_path = "/tmp/sparkcv/output/faces/"
+    face_image_input_folder_path = "/tmp/sparkcv/output/faces/"
     # face_mask_prediction("maksssksksss330_x280_y21_w73_h73.png")
     # face_mask_prediction("maksssksksss330_x283_y97_w59_h59.png")
-    detect_mask_in_batch(image_input_folder_path)
+    # integrate_face_mask_prediction("maksssksksss51_x98_y133_w126_h126.png", "maksssksksss51.png", False)
+    detect_mask_in_batch(face_image_input_folder_path)
 
 
 if __name__ == "__main__":
