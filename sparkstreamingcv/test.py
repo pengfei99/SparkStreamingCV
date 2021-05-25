@@ -1,104 +1,67 @@
 import itertools
-
 from pyspark.sql import SparkSession
-from pyspark.sql import functions as F
-
-spark = SparkSession.builder \
-    .master("local") \
-    .appName("FaceDetection") \
-    .getOrCreate()
-
-source_data = [
-    ("toto", "toto_1", "00", 1),
-    ("titi", "titi_1", "00", 2),
-    ("tata", "titi_1", "00", 3),
-    ("toto", "toto_2", "00", 4),
-    ("toto", "toto_3", "00", 5),
-]
-
-source_df = spark.createDataFrame(source_data, ["name", "key", "content", "value"])
-source_df.show()
-
-# solution one: use key value map structure
-target_df = source_df.withColumn("target", F.create_map("key", "value"))
-target_df.show()
-target_df.printSchema()
-dfMap = target_df.groupby("name").agg(F.collect_list("target").alias("list"))
-dfMap.show(5, False)
+from pyspark.sql import functions as f
 
 
-def flat_list(source_list):
-    return list(itertools.chain(*source_list))
+def word_count_streaming(spark):
+    # use nc -lk 9999 to create a socket
+    # Create DataFrame representing the stream of input lines from connection to localhost:9999
+    lines = spark \
+        .readStream \
+        .format("socket") \
+        .option("host", "localhost") \
+        .option("port", 9999) \
+        .load()
+
+    # Split the lines into words
+    words = lines.select(
+        f.explode(
+            f.split(lines.value, " ")
+        ).alias("word")
+    )
+    # Generate running word count
+    wordCounts = words.groupBy("word").count()
+
+    # Start running the query that prints the running counts to the console
+    # delta only support append and complete outputMode
+    stream = wordCounts \
+        .writeStream \
+        .outputMode("complete") \
+        .format("delta") \
+        .option("checkpointLocation", "/tmp/sparkcv/delta/events/_checkpoints/word_count") \
+        .start("/tmp/sparkcv/delta/events")  # output path of the data in delta "format"
+
+    stream.awaitTermination(100)
+    stream.stop()
 
 
-Flat_List_UDF = F.udf(lambda list: flat_list(list))
-
-dfFlatMap = dfMap.withColumn("flat_list", Flat_List_UDF("list"))
-dfFlatMap.show()
-
-# solution two use user define struct type, solution two is better.
-df_new = source_df.groupBy("name").agg(F.collect_list(
-    F.struct(
-        *[F.col("key").alias("t.key"), F.col("content").alias("t.content"), F.col("value").alias("t.value")])).alias(
-    "target"))
-
-df_new.show(5, False)
-df_new.printSchema()
+def read_delta_streaming(spark):
+    stream = spark.readStream.format("delta").load("/tmp/sparkcv/delta/events").writeStream \
+        .format("console") \
+        .start()
+    stream.awaitTermination(100)
+    stream.stop()
 
 
-def show_content(varList):
-    res = []
-    for var in varList:
-        name = var[0]
-        content = var[1]
-        value = var[2]
-        res.append(name + content + str(value))
-    return res
+def read_image_streaming(spark):
+    image_input_folder_path="/tmp/sparkcv/input"
+    image_schema = spark.read.format("binaryFile").load(image_input_folder_path).schema
+    stream = spark.readStream.format("binaryFile").option("pathGlobFilter", "*.png") \
+        .schema(image_schema) \
+        .load(image_input_folder_path).writeStream.format("console").start()
+    stream.awaitTermination(100)
+    stream.stop()
 
 
-Show_Content_UDF = F.udf(lambda varList: show_content(varList))
+def main():
+    spark = SparkSession.builder \
+        .master("local") \
+        .appName("StreamingExample") \
+        .config("spark.jars.packages", "io.delta:delta-core_2.12:0.8.0") \
+        .getOrCreate()
 
-test=df_new.withColumn("test", Show_Content_UDF("target"))
+    # read_delta_streaming(spark)
+    read_image_streaming(spark)
 
-test.show(5,False)
-# df_new = source_df.withColumn(
-#     'target',
-#     F.struct(*[F.col('key').alias('t_key'),F.col("content").alias('t_content'), F.col("value").alias('t_value')])
-# )
-#
-# df_new.show()
-# df_new.printSchema()
-# df_new_collected = target_df.groupby("name").agg(F.collect_list("target").alias("list"))
-# df_new_collected.show(5, False)
-#
-# df_new_collected.printSchema()
-# def get_value(keyValueList):
-#     for keyValue in keyValueList:
-#         keyValue.get
-
-
-"""
-scala code work with column struct type
-
-import org.apache.spark.sql._
-import org.apache.spark.sql.types._
-import org.apache.spark.sql.expressions._
-
-val df = Seq(
-  ("str", 1, 0.2)
-).toDF("a", "b", "c").
-  withColumn("struct", struct($"a", $"b", $"c"))
-
-// UDF for struct
-val func = udf((x: Any) => {
-  x match {
-    case Row(a: String, b: Int, c: Double) => 
-      s"$a-$b-$c"
-    case other => 
-      sys.error(s"something else: $other")
-  }
-}, StringType)
-
-df.withColumn("d", func($"struct")).show
-
-"""
+if __name__ == "__main__":
+    main()

@@ -41,14 +41,12 @@ def integrate_face_mask_prediction(face_image_name, origin_image_name, has_mask)
     # prediction to untreated faces.
     # If not treated, we load image from
     treated_image_path = "{}/{}".format(final_output_path, origin_image_name)
-    print(treated_image_path)
     # If the image is treated, update the treated image
     if os.path.isfile(treated_image_path):
-        image = cv2.imread(final_output_path)
+        image = cv2.imread(treated_image_path)
     else:
         # Get the untreated image from input
         image = cv2.imread("{}/{}".format(image_input_folder_path, origin_image_name))
-        print("{}/{}".format(image_input_folder_path, origin_image_name))
 
     # set Label text
     if has_mask:
