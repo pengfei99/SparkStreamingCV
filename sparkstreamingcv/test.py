@@ -43,16 +43,6 @@ def read_delta_streaming(spark):
     stream.stop()
 
 
-def read_image_streaming(spark):
-    image_input_folder_path="/tmp/sparkcv/input"
-    image_schema = spark.read.format("binaryFile").load(image_input_folder_path).schema
-    stream = spark.readStream.format("binaryFile").option("pathGlobFilter", "*.png") \
-        .schema(image_schema) \
-        .load(image_input_folder_path).writeStream.format("console").start()
-    stream.awaitTermination(100)
-    stream.stop()
-
-
 def main():
     spark = SparkSession.builder \
         .master("local") \
@@ -61,7 +51,8 @@ def main():
         .getOrCreate()
 
     # read_delta_streaming(spark)
-    read_image_streaming(spark)
+    word_count_streaming(spark)
+
 
 if __name__ == "__main__":
     main()

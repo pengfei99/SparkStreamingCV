@@ -33,7 +33,6 @@ def get_face_coordinate_of_origin_image(face_image_name):
     return int(x), int(y), int(w), int(h)
 
 
-# Recuperation_des_visages_UDF(col("path"), col("photo"), col("prediction")
 def integrate_face_mask_prediction(face_image_name, origin_image_name, has_mask):
     image_input_folder_path = "/tmp/sparkcv/input"
     final_output_path = "/tmp/sparkcv/output/final"
