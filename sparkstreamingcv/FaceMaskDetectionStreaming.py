@@ -6,13 +6,21 @@ import cv2
 import numpy as np
 import tensorflow as tf
 import os
-
 from pyspark.sql.types import StringType, ArrayType, BooleanType
 
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
 
-def render_image(binary_content):
-    img = Image.open(io.BytesIO(binary_content))
-    img = img.convert('RGB')
+
+def render_image(raw_image_df):
+    image_path_list = raw_image_df.select("id").map(lambda r: r.getString(0)).collect.toList
+    for image_path in image_path_list:
+        img = mpimg.imread(image_path)
+        imgplot = plt.imshow(img)
+        plt.show()
+    # for jupyter notebook
+    # for imageName in image_path_list:
+    #     display(Image(filename=imageName))
 
 
 def extract_file_name(path):
