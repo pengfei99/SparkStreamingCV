@@ -12,15 +12,27 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 
 
-def render_image(raw_image_df):
-    image_path_list = raw_image_df.select("id").map(lambda r: r.getString(0)).collect.toList
-    for image_path in image_path_list:
+def get_image_list(df, col_name):
+    return df.select(col_name).distinct().toPandas()[col_name]
+
+
+def render_image(image_folder_path, image_list):
+    for image_name in image_list:
+        image_path = image_folder_path + "/" + image_name
         img = mpimg.imread(image_path)
         imgplot = plt.imshow(img)
         plt.show()
     # for jupyter notebook
     # for imageName in image_path_list:
     #     display(Image(filename=imageName))
+
+
+def show_image(df, epoch_id):
+    image_list = get_image_list(df, "origin_image_name")
+    final_output_path = "/tmp/sparkcv/output/final"
+    render_image(final_output_path, image_list)
+    df.show(5, False)
+    pass
 
 
 def extract_file_name(path):
@@ -72,6 +84,7 @@ def detect_faces_streaming(raw_image_df_stream):
 
     # run the face detection function on each row
     detected_face_list_df = image_name_df.withColumn("detected_face_list", Face_Extraction_UDF("origin_image_name"))
+    # explode face_list column (list type) to multi-rows
     detected_face_df = detected_face_list_df.withColumn("extracted_face_image_name",
                                                         f.explode(f.col("detected_face_list"))).drop(
         "detected_face_list")
@@ -81,8 +94,12 @@ def detect_faces_streaming(raw_image_df_stream):
 def read_image_streaming(spark):
     image_input_folder_path = "/tmp/sparkcv/input"
     image_schema = spark.read.format("binaryFile").load(image_input_folder_path).schema
-    raw_image_df_stream = spark.readStream.format("binaryFile").option("pathGlobFilter", "*.png") \
+    raw_image_df_stream = spark.readStream \
+        .format("binaryFile") \
         .schema(image_schema) \
+        .option("maxFilesPerTrigger", "500") \
+        .option("recursiveFileLookup", "true") \
+        .option("pathGlobFilter", "*.png") \
         .load(image_input_folder_path)
     return raw_image_df_stream
 
@@ -186,10 +203,14 @@ def main():
                                                     Integrate_Face_Mask_Prediction_UDF("extracted_face_image_name",
                                                                                        "origin_image_name",
                                                                                        "has_mask"))
-    stream = complete_df.writeStream \
-        .format("console") \
-        .option("truncate", "false") \
-        .start()
+    # Try "update" and "complete" mode.
+    # stream = complete_df.writeStream \
+    #     .outputMode("update") \
+    #     .format("console") \
+    #     .option("numRows", 3) \
+    #     .option("truncate", "false") \
+    #     .start()
+    stream = complete_df.writeStream.foreachBatch(show_image).start()
     stream.awaitTermination(200)
     stream.stop()
 

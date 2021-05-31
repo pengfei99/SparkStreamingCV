@@ -41,21 +41,6 @@ def extract_file_name(path):
     return sql_fun.substring_index(path, "/", -1)
 
 
-def detect_faces_in_stream(image_input_folder_path):
-    image_schema = spark.read.format("binaryFile").load(image_input_folder_path).schema
-    raw_images_stream_df = spark.readStream \
-        .format("binaryFile") \
-        .schema(image_schema) \
-        .option("maxFilesPerTrigger", "500") \
-        .option("recursiveFileLookup", "true") \
-        .option("pathGlobFilter", "*.png") \
-        .load(image_input_folder_path)
-    df2 = raw_images_stream_df \
-        .select("path") \
-        .withColumn("image_name", extract_file_name(sql_fun.col("path"))).drop("path")
-    df2.show()
-
-
 # create a udf which calls face_extraction function
 Face_Extraction_UDF = udf(lambda image_name: face_extraction(image_name))
 
