@@ -24,3 +24,15 @@ pytest = "^5.2"
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+# For python 3.7,
+
+# pip install opencv-contrib-python
+# pip install tensorflow
+
+# AttributeError: module 'numpy.linalg.lapack_lite' has no attribute '_ilp64' It seems like default version 0.11.1 has a bug
+# pip uninstall statsmodels -y
+# pip install statsmodels==0.11.0
+
+# maybe not needed
+# sudo pip uninstall botocore
