@@ -217,3 +217,15 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+home="/home/jovyan/work"
+image_input_folder_path = "{}/sparkcv/input/".format(home)
+faces_output_path = "{}/sparkcv/output/faces".format(home)
+final_output_path = "{}/sparkcv/output/final".format(home)
+cascade_model_path = "{}/sparkcv/trained_models".format(home)
+cascade_model_name = "haarcascade_frontalface_default.xml"
+vgg19_model_path = "{}/sparkcv/trained_models".format(home)
+vgg19_model_name = "masknet.h5"
+
+event_log_path="{}/spark-history".format(home)
