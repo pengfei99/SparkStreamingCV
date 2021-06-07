@@ -20,7 +20,7 @@ def face_extraction(image_name):
 
     # loading haarcascade_frontalface_default.xml, you can get all the pre-trained model from
     # https://github.com/opencv/opencv/tree/3.4/data/haarcascades
-    face_model = cv2.CascadeClassifier("{}/haarcascade_frontalface_default.xml".format(cascade_model_path))
+    face_model = cv2.CascadeClassifier("{}/haarcascade_frontalface_default.xml".format(cv2.data.haarcascades))
     faces = face_model.detectMultiScale(img, scaleFactor=1.1, minNeighbors=4)  # returns a list of (x,y,w,h) tuples
     img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
@@ -74,3 +74,13 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+#
+# with fs.open(image_path,mode='rb') as f:
+#    raw = f.read()
+#    # print(raw)
+#    nparr = np.fromstring(raw, np.uint8)
+#    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+#    print(nparr)
+#    cv2.imshow('Final_Image',img)
