@@ -7,3 +7,4 @@ opencv-contrib-python ==4.5.2.52
 matplotlib ==3.4.2
 scipy ==1.6.3
 conda-pack == 0.6.0
+ipykernel==5.5.5
