@@ -91,6 +91,46 @@ def face_mask_prediction(np_img_str):
 Face_Mask_Prediction_UDF = f.udf(lambda face_image_content: face_mask_prediction(face_image_content), BooleanType())
 
 
+########################################### Step 3 ######################################################
+def get_face_coordinate_of_origin_image(face_image_name):
+    x = face_image_name.split("_")[1][1:]
+    y = face_image_name.split("_")[2][1:]
+    w = face_image_name.split("_")[3][1:]
+    h = face_image_name.split("_")[4][1:].split('.')[0]
+    return int(x), int(y), int(w), int(h)
+
+
+def integrate_face_mask_prediction(origin_image_name, face_list, origin_image_content):
+    final_output_path = "/tmp/sparkcv/output/final/{}".format(origin_image_name)
+    buffer_img = cv.imdecode(np.asarray(bytearray(origin_image_content)), cv.IMREAD_COLOR)
+    for face in face_list:
+        face_image_name = face[0]
+        has_mask = face[1]
+        # set Label text
+        if has_mask:
+            mask_label = "MASK"
+        else:
+            mask_label = "NO MASK"
+        # Get the coordinate and size of face image
+        (x, y, w, h) = get_face_coordinate_of_origin_image(face_image_name)
+        # Set text color for mask label
+        mask_label_color = {"MASK": (0, 255, 0), "NO MASK": (0, 0, 255)}
+
+        # Insert mask label to image
+        buffer_img = cv.putText(buffer_img, mask_label, (x, y - 10), cv.FONT_HERSHEY_SIMPLEX, 0.5,
+                                mask_label_color[mask_label], 2)
+        # Insert a rectangle around the face
+        buffer_img = cv.rectangle(buffer_img, (x, y), (x + w, y + h), mask_label_color[mask_label], 1)
+    # Save the image
+    cv.imwrite(final_output_path, buffer_img)
+    return "Done"
+
+
+Integrate_Face_Mask_Prediction_UDF = f.udf(
+    lambda origin_img_name, face_list, origin_img_content: integrate_face_mask_prediction(origin_img_name, face_list,
+                                                                                          origin_img_content))
+
+
 def main():
     os.environ['SPARK_HOME'] = "/home/pliu/Tools/spark/spark-3.1.2"
 
@@ -131,8 +171,22 @@ def main():
                                                       "extracted_face_image_content"))
     detected_face_df.show()
     # step 2
-    with_mask_df = detected_face_df.withColumn("with_mask", Face_Mask_Prediction_UDF("extracted_face_image_content"))
-    with_mask_df.show()
+    predicted_mask_df = detected_face_df.withColumn("with_mask",
+                                                    Face_Mask_Prediction_UDF("extracted_face_image_content"))
+    predicted_mask_df.show()
+
+    # step 3
+    grouped_face_df = predicted_mask_df.drop("extracted_face_image_content").groupBy("origin_image_name").agg(
+        f.collect_list(
+            f.struct(
+                *[f.col("extracted_face_image_name").alias("face_name"), f.col("with_mask").alias("with_mask")]))
+            .alias("face_list"))
+    join_with_content_df = grouped_face_df.join(image_name_df, "origin_image_name", "inner")
+    join_with_content_df.show()
+    last = join_with_content_df.withColumn("integration",
+                                           Integrate_Face_Mask_Prediction_UDF("origin_image_name", "face_list",
+                                                                              "content"))
+    last.show()
 
 
 if __name__ == "__main__":
