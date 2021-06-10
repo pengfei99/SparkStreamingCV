@@ -20,11 +20,11 @@ def face_extraction(image_name):
 
     # loading haarcascade_frontalface_default.xml, you can get all the pre-trained model from
     # https://github.com/opencv/opencv/tree/3.4/data/haarcascades
-    face_model = cv2.CascadeClassifier("{}/haarcascade_frontalface_default.xml".format(cv2.data.haarcascades))
+    face_model = cv2.CascadeClassifier("{}/haarcascade_frontalface_default.xml".format(cascade_model_path))
     faces = face_model.detectMultiScale(img, scaleFactor=1.1, minNeighbors=4)  # returns a list of (x,y,w,h) tuples
     img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
 
-    # Extraction des visages présents sur la photo
+    # extract faces from input image
     for i in range(len(faces)):
         (x, y, w, h) = faces[i]
         crop = img[y:y + h, x:x + w]

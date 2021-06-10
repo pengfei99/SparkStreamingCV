@@ -17,6 +17,7 @@ opencv-contrib-python = "^4.5.2"
 matplotlib = "^3.4.2"
 scipy = "^1.6.3"
 boto3 = "^1.17.89"
+mlflow = "^1.17.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"

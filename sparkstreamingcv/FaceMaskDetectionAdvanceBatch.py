@@ -1,37 +1,45 @@
 from pyspark.sql import SparkSession
 import os
-import boto3
-from botocore.client import Config
 import cv2 as cv
 import numpy as np
 from pyspark.sql import functions as f
 from pyspark.sql.types import *
-import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
-import tensorflow as tf
+import mlflow
 
 
+# deseriallize byte to opencv image format
 def convert_byte_to_nparr(img_byte):
     np_array = cv.imdecode(np.asarray(bytearray(img_byte)), cv.IMREAD_COLOR)
     return np_array
 
 
+# serialize opencv image format to byte
 def convert_nparr_to_byte(img_np_array):
     success, img = cv.imencode('.png', img_np_array)
     return img.tobytes()
 
 
-def write_img_to_S3(s3_client, img_np_array, bucket_name, img_path):
-    success, my_img = cv.imencode('.png', img_np_array)
-    my_img_byte = my_img.tobytes()
+# save image byte to s3
+def write_img_byte_to_s3(s3_client, img_byte, bucket_name, img_path):
     # set the path of where you want to put the object
     img_object = s3_client.Object(bucket_name, img_path)
     # set the content which you want to write
-    img_object.put(Body=my_img_byte)
+    img_object.put(Body=img_byte)
 
 
+# column function for extract image name
 def extract_file_name(path):
     return f.substring_index(path, "/", -1)
+
+
+# set mlflow env var
+def set_mlflow_env():
+    os.environ["MLFLOW_TRACKING_URI"] = 'https://mlflow.lab.sspcloud.fr/'
+    os.environ["MLFLOW_S3_ENDPOINT_URL"] = "https://minio.lab.sspcloud.fr"
+    os.environ["AWS_ACCESS_KEY_ID"] = "mlflow"
+    os.environ["AWS_SECRET_ACCESS_KEY"] = "TdsqEs8FxPecHyixK6gI"
+    if "AWS_SESSION_TOKEN" in os.environ:
+        del os.environ["AWS_SESSION_TOKEN"]
 
 
 def face_extraction(image_name, raw_img_content):
@@ -78,7 +86,15 @@ def face_mask_prediction(np_img_str):
     np_arr_img = convert_byte_to_nparr(np_img_str)
     img = np.reshape(np_arr_img, [1, 128, 128, 3])
     img = img / 255.0
-    vgg19_model = tf.keras.models.load_model("{}/{}".format(vgg19_model_path, vgg19_model_name))
+    # fetch local model
+    # vgg19_model = tf.keras.models.load_model("{}/{}".format(vgg19_model_path, vgg19_model_name))
+    # fetch model from mlflow server
+    # set mlflow env
+    set_mlflow_env()
+    # Get model
+    model_name = "face-mask-detection"
+    stage = 'Production'
+    vgg19_model = mlflow.keras.load_model(model_uri=f"models:/{model_name}/{stage}")
     score = vgg19_model.predict(img)
     if np.argmax(score) == 0:
         res = True
@@ -123,12 +139,15 @@ def integrate_face_mask_prediction(origin_image_name, face_list, origin_image_co
         buffer_img = cv.rectangle(buffer_img, (x, y), (x + w, y + h), mask_label_color[mask_label], 1)
     # Save the image
     cv.imwrite(final_output_path, buffer_img)
-    return "Done"
+    # serialize cv image to bytes
+    img_bytes = convert_nparr_to_byte(buffer_img)
+    return img_bytes
 
 
 Integrate_Face_Mask_Prediction_UDF = f.udf(
     lambda origin_img_name, face_list, origin_img_content: integrate_face_mask_prediction(origin_img_name, face_list,
-                                                                                          origin_img_content))
+                                                                                          origin_img_content),
+    BinaryType())
 
 
 def main():
@@ -149,13 +168,14 @@ def main():
         .option("maxFilesPerTrigger", "500") \
         .option("recursiveFileLookup", "true") \
         .option("pathGlobFilter", "*.png") \
-        .load(image_input_folder_path)
-    # imgbyte = list(raw_images_df.select("content").toPandas()["content"])[0]
+        .load(image_input_folder_path) \
+        .withColumn("time_stamp", f.current_timestamp()) \
+        # imgbyte = list(raw_images_df.select("content").toPandas()["content"])[0]
     # # print(imgbyte)
     # img = cv2.imdecode(np.asarray(bytearray(imgbyte)), cv2.IMREAD_COLOR)
     # print(img)
     image_name_df = raw_image_df \
-        .select("path", "content") \
+        .select("path", "content", "time_stamp") \
         .withColumn("origin_image_name", extract_file_name(f.col("path"))).drop("path")
     image_name_df.show()
     detected_face_list_df = image_name_df.withColumn("detected_face_list",
@@ -165,7 +185,7 @@ def main():
                                                            f.explode(f.col("detected_face_list"))).drop(
         "detected_face_list")
     detected_face_ob_df.printSchema()
-    detected_face_df = detected_face_ob_df.select(f.col("origin_image_name"),
+    detected_face_df = detected_face_ob_df.select(f.col("origin_image_name"), f.col("time_stamp"),
                                                   f.col("extracted_face.img_name").alias("extracted_face_image_name"),
                                                   f.col("extracted_face.img_content").alias(
                                                       "extracted_face_image_content"))
@@ -181,12 +201,13 @@ def main():
             f.struct(
                 *[f.col("extracted_face_image_name").alias("face_name"), f.col("with_mask").alias("with_mask")]))
             .alias("face_list"))
+    grouped_face_df.show()
     join_with_content_df = grouped_face_df.join(image_name_df, "origin_image_name", "inner")
     join_with_content_df.show()
-    last = join_with_content_df.withColumn("integration",
-                                           Integrate_Face_Mask_Prediction_UDF("origin_image_name", "face_list",
-                                                                              "content"))
-    last.show()
+    final_df = join_with_content_df.withColumn("marked_img_content",
+                                               Integrate_Face_Mask_Prediction_UDF("origin_image_name", "face_list",
+                                                                                  "content"))
+    final_df.show()
 
 
 if __name__ == "__main__":
