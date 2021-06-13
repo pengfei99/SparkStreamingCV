@@ -5,6 +5,7 @@ import numpy as np
 from pyspark.sql import functions as f
 from pyspark.sql.types import *
 import mlflow
+import tensorflow as tf
 
 
 # deseriallize byte to opencv image format
@@ -87,14 +88,14 @@ def face_mask_prediction(np_img_str):
     img = np.reshape(np_arr_img, [1, 128, 128, 3])
     img = img / 255.0
     # fetch local model
-    # vgg19_model = tf.keras.models.load_model("{}/{}".format(vgg19_model_path, vgg19_model_name))
+    vgg19_model = tf.keras.models.load_model("{}/{}".format(vgg19_model_path, vgg19_model_name))
     # fetch model from mlflow server
     # set mlflow env
     set_mlflow_env()
     # Get model
-    model_name = "face-mask-detection"
-    stage = 'Production'
-    vgg19_model = mlflow.keras.load_model(model_uri=f"models:/{model_name}/{stage}")
+    # model_name = "face-mask-detection"
+    # stage = 'Production'
+    # vgg19_model = mlflow.keras.load_model(model_uri=f"models:/{model_name}/{stage}")
     score = vgg19_model.predict(img)
     if np.argmax(score) == 0:
         res = True
@@ -178,14 +179,15 @@ def main():
         .select("path", "content", "time_stamp") \
         .withColumn("origin_image_name", extract_file_name(f.col("path"))).drop("path")
     image_name_df.show()
+
     detected_face_list_df = image_name_df.withColumn("detected_face_list",
-                                                     Face_Extraction_UDF("origin_image_name", "content")).drop(
-        "content")
+                                                     Face_Extraction_UDF("origin_image_name", "content"))
+
     detected_face_ob_df = detected_face_list_df.withColumn("extracted_face",
                                                            f.explode(f.col("detected_face_list"))).drop(
         "detected_face_list")
     detected_face_ob_df.printSchema()
-    detected_face_df = detected_face_ob_df.select(f.col("origin_image_name"), f.col("time_stamp"),
+    detected_face_df = detected_face_ob_df.select(f.col("origin_image_name"), f.col("time_stamp"), f.col("content"),
                                                   f.col("extracted_face.img_name").alias("extracted_face_image_name"),
                                                   f.col("extracted_face.img_content").alias(
                                                       "extracted_face_image_content"))
@@ -196,17 +198,18 @@ def main():
     predicted_mask_df.show()
 
     # step 3
-    grouped_face_df = predicted_mask_df.drop("extracted_face_image_content").groupBy("origin_image_name").agg(
+    grouped_face_df = predicted_mask_df.drop("extracted_face_image_content").groupBy("origin_image_name",
+                                                                                     "content").agg(
         f.collect_list(
             f.struct(
                 *[f.col("extracted_face_image_name").alias("face_name"), f.col("with_mask").alias("with_mask")]))
             .alias("face_list"))
     grouped_face_df.show()
-    join_with_content_df = grouped_face_df.join(image_name_df, "origin_image_name", "inner")
-    join_with_content_df.show()
-    final_df = join_with_content_df.withColumn("marked_img_content",
-                                               Integrate_Face_Mask_Prediction_UDF("origin_image_name", "face_list",
-                                                                                  "content"))
+    # join_with_content_df = grouped_face_df.join(image_name_df, "origin_image_name", "inner")
+    # join_with_content_df.show()
+    final_df = grouped_face_df.withColumn("marked_img_content",
+                                          Integrate_Face_Mask_Prediction_UDF("origin_image_name", "face_list",
+                                                                             "content"))
     final_df.show()
 
 
