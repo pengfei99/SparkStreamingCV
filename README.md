@@ -88,7 +88,7 @@ conda create -y -n ${venv_name} python=${py_version}
 conda init
 source $HOME/.bashrc
 conda activate ${venv_name}
-pip install -r requirements.txt
+pip install -r freshpy38-requirements.txt
 ```
 
 ## pack conda virtual env 

@@ -11,7 +11,7 @@ def clean_poetry_generated_requirement_file(spark, input_file_path, output_file_
 
 def main():
     spark = SparkSession.builder.master("local").appName("test").getOrCreate()
-    input_file_path = "/requirements.txt"
+    input_file_path = "/freshpy38-requirements.txt"
     output_file_path = "/tmp/requirement.txt"
     clean_poetry_generated_requirement_file(spark,input_file_path,output_file_path)
 

@@ -1,0 +1,4 @@
+mlflow == 1.17.0
+opencv-contrib-python == 4.5.2.54
+tensorflow == 2.5.0
+protobuf == 3.17.3
