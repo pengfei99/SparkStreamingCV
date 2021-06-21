@@ -67,22 +67,25 @@ The source codes of the application can be found [here](https://github.com/pengf
 
 # SparkStreamingCV
 
-## 1. Create jupyter kernel 
+## 1. Create project development env jupyter kernel 
 
-### 1.1 Create kernel by using poetry venv
+### 1.1 For poetry env
+
+#### 1.1.1 Create virtual env and install dependencies
+```shell
+# Clone the project, go to root dir, run poetry install to create virtual env and install dependencies
+poetry install 
+```
+
+#### 1.1.2 Create a jupyter kernel by using poetry venv
 
 ```shell
 poetry run python -m ipykernel install --name spark_streaming_cv --user 
 ```
 
-### 1.2 Create kernel by using conda venv
+### 1.2 For conda env
 
-```shell
-python -m ipykernel install --name spark_streaming_cv --user 
-```
-
-
-## Setup conda env and install dependencies
+#### 1.2.1 Setup conda env and install dependencies
 ```shell
 conda create -y -n ${venv_name} python=${py_version}
 conda init
@@ -91,7 +94,27 @@ conda activate ${venv_name}
 pip install -r freshpy38-requirements.txt
 ```
 
-## pack conda virtual env 
+#### 1.2.2 pack conda virtual env 
 ```shell
 conda pack -f -o pyspark_conda_env.tar.gz
+```
+
+
+#### 1.2.3 Create kernel by using conda venv
+
+```shell
+python -m ipykernel install --name spark_streaming_cv --user 
+```
+
+
+## 2 Modify IOPub data rate exceeded in Jupyter notebook (when viewing image)
+In a datalab jupyter lab, you can do the following command
+```shell
+start.sh jupyter-lab --notebook-dir=/home/$(NB_USER)/work --NotebookApp.token='$(PASSWORD)' \
+--NotebookApp.iopub_data_rate_limit=1.0e10
+```
+
+In a local jupyter notebook, you can do the following command
+```shell
+jupyter notebook --NotebookApp.iopub_data_rate_limit=1.0e10
 ```
