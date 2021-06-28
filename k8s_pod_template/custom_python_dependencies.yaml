@@ -1,0 +1,7 @@
+apiversion: v1
+kind: Pod
+spec:
+  containers:
+  - name: custom_py_dependencies
+    image: inseefrlab/jupyter-datascience:master
+    command: ['sh', '-c', '/opt/conda/bin/pip install tensorflow && /opt/entrypoint.sh executor']
