@@ -2,6 +2,6 @@ apiversion: v1
 kind: Pod
 spec:
   containers:
-  - name: custom_py_dependencies
+  - name: custom-spark
     image: inseefrlab/jupyter-datascience:master
-    command: ['sh', '-c', '/opt/conda/bin/pip install tensorflow && /opt/entrypoint.sh executor']
+    command: ['sh', '-c', '/opt/conda/bin/pip install tensorflow==2.5.0 && /opt/conda/bin/pip install opencv-contrib-python==4.5.2.54 && /opt/conda/bin/pip install protobuf==3.17 && /opt/entrypoint.sh executor']
