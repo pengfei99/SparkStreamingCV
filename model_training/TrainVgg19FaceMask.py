@@ -18,7 +18,7 @@ mlflow.keras.autolog()
 
 # it defines how many time the model will do a pass on the training data set, each pass, the model will be updated a little
 # one pass means "one forward pass and one backward pass of all the training examples
-epochs = 20
+epochs = 2
 experiment_name = os.getenv("MLFLOW_EXPERIMENT_NAME")
 
 
@@ -30,11 +30,11 @@ def main():
         train_generator = train_datagen.flow_from_directory(directory=train_dir, target_size=(128, 128),
                                                             class_mode='categorical', batch_size=32)
         val_datagen = ImageDataGenerator(rescale=1.0 / 255)
-        validate_generator = train_datagen.flow_from_directory(directory=val_dir, target_size=(128, 128),
+        validate_generator = val_datagen.flow_from_directory(directory=val_dir, target_size=(128, 128),
                                                                class_mode='categorical',
                                                                batch_size=32)
         test_datagen = ImageDataGenerator(rescale=1.0 / 255)
-        test_generator = train_datagen.flow_from_directory(directory=val_dir, target_size=(128, 128),
+        test_generator = test_datagen.flow_from_directory(directory=test_dir, target_size=(128, 128),
                                                            class_mode='categorical',
                                                            batch_size=32)
 
