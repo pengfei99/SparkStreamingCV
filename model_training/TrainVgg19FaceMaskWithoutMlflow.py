@@ -2,8 +2,8 @@ import os
 
 import matplotlib.pyplot as plt
 import tensorflow as tf
-from tensorflow.keras.applications.vgg19 import VGG19
 from tensorflow.keras import Sequential
+from tensorflow.keras.applications.vgg19 import VGG19
 from tensorflow.keras.layers import Flatten, Dense
 from tensorflow.keras.preprocessing import image_dataset_from_directory
 
@@ -140,9 +140,9 @@ rescale = tf.keras.layers.experimental.preprocessing.Rescaling(1.0 / 255)
 
 # For image shape, we need to add color channel to image size
 IMG_SHAPE = IMG_SIZE + (3,)
-base_model = tf.keras.applications.VGG19(input_shape=IMG_SHAPE,
-                                         include_top=False,
-                                         weights='imagenet')
+base_model = VGG19(input_shape=IMG_SHAPE,
+                   include_top=False,
+                   weights='imagenet')
 
 # 2. Build our model by using the base_model
 # freeze base_model layers
@@ -151,6 +151,9 @@ for layer in base_model.layers:
 
 # create our model
 model = Sequential()
+# add rescaling layer
+model.add(rescale)
+
 # add base model to our model as button layers
 model.add(base_model)
 # add a flatten layer to flat the output of button layers
@@ -158,12 +161,12 @@ model.add(Flatten())
 
 # add a classification layer as output layer
 model.add(Dense(2, activation='sigmoid'))
-# view the model summary
-model.summary()
 
 # compile your model
 model.compile(optimizer="adam", loss="categorical_crossentropy", metrics="accuracy")
 
+# view the model summary after compile/build
+model.summary()
 # train the model
 epochs = 2
 history = model.fit(train_dataset,
